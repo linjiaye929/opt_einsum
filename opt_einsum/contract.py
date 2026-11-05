@@ -708,7 +708,12 @@ def _core_contract(
         operands.append(new_view)
         del tmp_operands, new_view
 
+    if evaluate_constants:
+        return operands, []
+
     if specified_out:
+        if not contraction_list:
+            out[...] = operands[0]  # type: ignore
         return out
     else:
         return operands[0]
@@ -872,7 +877,8 @@ class ContractExpression:
         Returns:
             The contracted result.
         """
-        backend = parse_backend(arrays, backend)
+        backend_arrays = arrays or tuple(self._constants_dict.values())
+        backend = parse_backend(backend_arrays, backend)
 
         correct_num_args = self._full_num_args if evaluate_constants else self.num_args
 
@@ -891,7 +897,7 @@ class ContractExpression:
         try:
             # Check if the backend requires special preparation / calling
             #   but also ignore non-numpy arrays -> assume user wants same type back
-            if backends.has_backend(backend) and all(infer_backend(x) == "numpy" for x in arrays):
+            if backends.has_backend(backend) and all(infer_backend(x) == "numpy" for x in backend_arrays):
                 return self._contract_with_conversion(ops, out, backend, evaluate_constants=evaluate_constants)
 
             return self._contract(ops, out=out, backend=backend, evaluate_constants=evaluate_constants)

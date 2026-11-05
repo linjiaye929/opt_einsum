@@ -249,6 +249,27 @@ def test_contract_expression_with_constants(string: str, constants: list[int]) -
     assert np.allclose(expected, out)
 
 
+@pytest.mark.parametrize("string", ["i,i->", "i,i->i", "ij,jk->ik", "ij->ji", "i->", ",->"])
+@pytest.mark.parametrize("backend", ["auto", "numpy"])
+@pytest.mark.parametrize("pre_evaluate", [False, True])
+@pytest.mark.parametrize("use_blas", [False, True])
+def test_contract_expression_all_constants(string: str, backend: str, pre_evaluate: bool, use_blas: bool) -> None:
+    views = build_views(string)
+    expected = np.einsum(string, *views)
+    expr = contract_expression(string, *views, constants=range(len(views)), use_blas=use_blas)
+
+    if pre_evaluate:
+        expr.evaluate_constants(backend)
+
+    for _ in range(2):
+        assert np.allclose(expr(backend=backend), expected)
+        out = np.full_like(expected, np.nan)
+        assert expr(backend=backend, out=out) is out
+        assert np.allclose(out, expected)
+
+    assert expr.contraction_list == []
+
+
 @pytest.mark.parametrize("optimize", ["greedy", "optimal"])
 @pytest.mark.parametrize("n", [4, 5])
 @pytest.mark.parametrize("reg", [2, 3])

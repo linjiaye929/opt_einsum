@@ -482,3 +482,16 @@ def test_object_arrays_backend(string: str) -> None:
     obj_opt = expr(*obj_views, backend="object")
     assert obj_opt.dtype == object
     assert np.allclose(ein, obj_opt.astype(float))
+
+
+@pytest.mark.parametrize("backend", ["auto", "torch"])
+def test_torch_all_constants(backend: str) -> None:
+    torch = pytest.importorskip("torch")
+    a, b = torch.rand(2, 3), torch.rand(3, 4)
+    expected = torch.einsum("ij,jk->ik", a, b)
+    expr = contract_expression("ij,jk->ik", a, b, constants=[0, 1])
+
+    for _ in range(2):
+        result = expr(backend=backend)
+        assert isinstance(result, torch.Tensor)
+        torch.testing.assert_close(expected, result)
