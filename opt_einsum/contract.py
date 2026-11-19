@@ -449,7 +449,20 @@ def _einsum(*operands: Any, **kwargs: Any) -> ArrayType:
         einsum_str = parser.convert_to_valid_einsum_chars(einsum_str)
 
     kwargs = _filter_einsum_defaults(kwargs)  # type: ignore
-    return fn(einsum_str, *operands, **kwargs)
+    try:
+        return fn(einsum_str, *operands, **kwargs)
+    except (ValueError, RuntimeError) as err:
+        # Some backends accept Unicode labels. Diagnose only a rejected equation,
+        # not every large contraction or an unrelated error from the backend.
+        if isinstance(err, UnicodeEncodeError) or "invalid subscript" in str(err).lower():
+            nlabels = len(set(einsum_str).difference(",->."))
+            if nlabels > 52:
+                err.add_note(
+                    f"This einsum step uses {nlabels} distinct indices. Backends restricted to ASCII letters "
+                    "accept at most 52 per step. Inspect contract_path: a tight memory_limit can force a "
+                    "many-input step. Consider a different path or slicing the contraction to fit memory."
+                )
+        raise
 
 
 def _default_transpose(x: ArrayType, axes: tuple[int, ...]) -> ArrayType:

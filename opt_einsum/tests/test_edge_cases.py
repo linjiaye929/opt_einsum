@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from opt_einsum import contract, contract_expression, contract_path
+from opt_einsum import contract, contract_expression, contract_path, get_symbol
 from opt_einsum.typing import PathType
 
 # NumPy is required for the majority of this file
@@ -157,3 +157,18 @@ def test_contract_with_assumed_shapes(expression: str, operands: tuple[Any]) -> 
     benchmark = np.einsum(expression, *operands)
     result = contract(expression, *operands, optimize=True)
     assert np.allclose(benchmark, result)
+
+
+def test_memory_limit_backend_label_diagnostic() -> None:
+    # Four small operands arranged in a ring, with 14 labels per edge.
+    edges = ["".join(get_symbol(i) for i in range(start, start + 14)) for start in range(0, 56, 14)]
+    equation = ",".join(edge + edges[(i + 1) % 4] for i, edge in enumerate(edges)) + "->"
+    arrays = [np.ones(((2,) + (1,) * 13) * 2) for _ in edges]
+    path, _ = contract_path(equation, *arrays, optimize="greedy", memory_limit=1)
+    assert path == [(0, 1, 2, 3)]
+    with pytest.raises(ValueError) as error:
+        contract(equation, *arrays, optimize=path)
+    notes = getattr(error.value, "__notes__", [])
+    assert any("56 distinct" in note and "52" in note and "memory_limit" in note for note in notes)
+    # Many indices across the *whole* contraction are fine when split across steps.
+    assert contract(equation, *arrays, optimize="greedy") == 16

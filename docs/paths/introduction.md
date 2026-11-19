@@ -199,3 +199,13 @@ worst-case performance might be more critical.
 Note that the speedups for any of the methods as compared to a standard
 `einsum` or a naively chosen path (such as `path=[(0, 1), (0, 1), ...]`)
 are all exponentially large and not shown.
+
+## Memory limits and per-step index limits
+
+A tight `memory_limit` can force the optimizer to contract several operands
+in a single step instead of building a larger intermediate. Some backends,
+including NumPy, accept only the 52 ASCII letters as indices in a single
+`einsum` call. An expression with more indices overall can still work when
+the individual steps stay within that limit. Inspect the path returned by
+`contract_path` and choose a path with smaller steps that still fits available
+memory, or split the computation into slices.
